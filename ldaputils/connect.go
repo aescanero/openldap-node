@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/aescanero/openldap-node/config"
-	"github.com/go-ldap/ldap"
+	"github.com/go-ldap/ldap/v3"
 )
 
 func Connect(ldapconfig config.Config, user, pass string) (*ldap.Conn, error) {

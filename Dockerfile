@@ -1,4 +1,4 @@
-FROM docker.io/golang:alpine3.17 AS builder
+FROM docker.io/golang:1.23-alpine AS builder
 
 LABEL org.opencontainers.image.authors="Alejandro Escanero Blanco <aescanero@disasterproject.com>"
 
@@ -24,7 +24,7 @@ COPY apiserver/dashboard/build apiserver/dashboard/build/.
 
 RUN go build -a -installsuffix cgo -o controller .
 
-FROM docker.io/debian:stable-20230227-slim As server
+FROM docker.io/debian:stable-slim As server
 
 LABEL org.opencontainers.image.authors="Alejandro Escanero Blanco <aescanero@disasterproject.com>"
 

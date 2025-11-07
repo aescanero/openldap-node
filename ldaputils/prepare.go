@@ -14,7 +14,7 @@ import (
 
 	"github.com/aescanero/openldap-node/config"
 	"github.com/aescanero/openldap-node/utils"
-	"github.com/go-ldap/ldap"
+	"github.com/go-ldap/ldap/v3"
 )
 
 //go:embed templates/slapd.conf.tmpl

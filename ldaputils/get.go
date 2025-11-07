@@ -3,7 +3,7 @@ package ldaputils
 import (
 	"log"
 
-	"github.com/go-ldap/ldap"
+	"github.com/go-ldap/ldap/v3"
 )
 
 func GetOne(conn *ldap.Conn, baseDN string, atributes ...string) (map[string]string, error) {

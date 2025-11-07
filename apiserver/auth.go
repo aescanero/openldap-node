@@ -10,7 +10,7 @@ import (
 	"github.com/aescanero/openldap-node/config"
 	"github.com/aescanero/openldap-node/ldaputils"
 	"github.com/gin-gonic/gin"
-	"github.com/go-ldap/ldap"
+	"github.com/go-ldap/ldap/v3"
 	"github.com/golang-jwt/jwt"
 )
 

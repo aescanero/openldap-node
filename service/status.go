@@ -17,7 +17,7 @@ package service
 import (
 	"log"
 
-	"github.com/go-ldap/ldap"
+	"github.com/go-ldap/ldap/v3"
 )
 
 func OpenldapStatus(port string) {
