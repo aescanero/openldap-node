@@ -33,7 +33,16 @@ func Server(apiconfig config.Config) {
 
 	// Improved CORS configuration
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:9090", "http://127.0.0.1:3000", "http://127.0.0.1:9090"},
+		AllowOrigins: []string{
+			"http://localhost:3000",
+			"http://localhost:9090",
+			"http://127.0.0.1:3000",
+			"http://127.0.0.1:9090",
+			"https://localhost:9443",
+			"https://localhost:3000",
+			"https://127.0.0.1:9443",
+			"https://127.0.0.1:3000",
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "Range"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Range"},
@@ -123,7 +132,47 @@ func Server(apiconfig config.Config) {
 
 	//router.Use(AuthMiddleware())
 
-	router.Run(":9090")
+	// Determine ports
+	httpPort := ":9090"
+	httpsPort := ":9443"
+	if apiconfig.SrvConfig.ApiTls.Port != "" {
+		httpsPort = ":" + apiconfig.SrvConfig.ApiTls.Port
+	}
+
+	// Start servers based on TLS configuration
+	if apiconfig.SrvConfig.ApiTls.Enabled {
+		// HTTPS is enabled
+		if apiconfig.SrvConfig.ApiTls.CertFile == "" || apiconfig.SrvConfig.ApiTls.KeyFile == "" {
+			log.Fatal("TLS enabled but certificate or key file not specified")
+		}
+
+		log.Printf("Starting HTTPS server on %s", httpsPort)
+
+		if apiconfig.SrvConfig.ApiTls.AutoRedirect {
+			// Start HTTP server that redirects to HTTPS
+			go func() {
+				redirectRouter := gin.New()
+				redirectRouter.Use(gin.Logger())
+				redirectRouter.Use(func(c *gin.Context) {
+					httpsURL := "https://" + c.Request.Host + c.Request.RequestURI
+					c.Redirect(http.StatusMovedPermanently, httpsURL)
+				})
+				log.Printf("Starting HTTP redirect server on %s", httpPort)
+				if err := redirectRouter.Run(httpPort); err != nil {
+					log.Printf("HTTP redirect server error: %v", err)
+				}
+			}()
+		}
+
+		// Start HTTPS server
+		if err := router.RunTLS(httpsPort, apiconfig.SrvConfig.ApiTls.CertFile, apiconfig.SrvConfig.ApiTls.KeyFile); err != nil {
+			log.Fatalf("Failed to start HTTPS server: %v", err)
+		}
+	} else {
+		// HTTP only
+		log.Printf("Starting HTTP server on %s (TLS disabled)", httpPort)
+		router.Run(httpPort)
+	}
 
 }
 

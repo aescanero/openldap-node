@@ -16,6 +16,26 @@ type ServerConfig struct {
 	LdapPort            string
 	Srvtls              serverTls
 	Debug               string
+	ApiTls              ApiTlsConfig
+	Redis               RedisConfig
+}
+
+// ApiTlsConfig holds TLS configuration for the API server
+type ApiTlsConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	CertFile   string `yaml:"cert_file"`
+	KeyFile    string `yaml:"key_file"`
+	Port       string `yaml:"port"` // Default 9443 for HTTPS
+	AutoRedirect bool `yaml:"auto_redirect"` // Redirect HTTP to HTTPS
+}
+
+// RedisConfig holds Redis connection configuration
+type RedisConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 func (scIn *ServerConfig) ImportNotNull(sc *ServerConfig) {

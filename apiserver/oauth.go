@@ -10,6 +10,7 @@ import (
 	"github.com/aescanero/openldap-node/config"
 	"github.com/aescanero/openldap-node/ldaputils"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	oauth2 "github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
@@ -17,6 +18,7 @@ import (
 	"github.com/go-oauth2/oauth2/v4/models"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
+	oredis "github.com/go-oauth2/redis/v4"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -29,8 +31,42 @@ func InitOAuth2Server(cfg config.Config) *server.Server {
 
 	manager := manage.NewDefaultManager()
 
-	// Token store (in-memory for now, can be changed to Redis/DB)
-	manager.MustTokenStorage(store.NewMemoryTokenStore())
+	// Token store - Use Redis if enabled, otherwise fallback to memory
+	if cfg.SrvConfig.Redis.Enabled {
+		// Initialize Redis client
+		redisHost := cfg.SrvConfig.Redis.Host
+		if redisHost == "" {
+			redisHost = "localhost"
+		}
+		redisPort := cfg.SrvConfig.Redis.Port
+		if redisPort == "" {
+			redisPort = "6379"
+		}
+
+		redisClient := redis.NewClient(&redis.Options{
+			Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
+			Password: cfg.SrvConfig.Redis.Password,
+			DB:       cfg.SrvConfig.Redis.DB,
+		})
+
+		// Test Redis connection
+		ctx := context.Background()
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			log.Printf("Redis connection failed: %v. Falling back to memory store", err)
+			manager.MustTokenStorage(store.NewMemoryTokenStore())
+		} else {
+			log.Printf("Redis token store connected successfully at %s:%s", redisHost, redisPort)
+			tokenStore := oredis.NewRedisStore(&redis.Options{
+				Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
+				Password: cfg.SrvConfig.Redis.Password,
+				DB:       cfg.SrvConfig.Redis.DB,
+			})
+			manager.MapTokenStorage(tokenStore)
+		}
+	} else {
+		log.Println("Using in-memory token store (Redis disabled)")
+		manager.MustTokenStorage(store.NewMemoryTokenStore())
+	}
 
 	// JWT access token generator
 	manager.MapAccessGenerate(generates.NewJWTAccessGenerate("", []byte("openldap-secret-key"), jwt.SigningMethodHS256))

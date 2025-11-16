@@ -49,7 +49,7 @@ func getAdminConnection() (*ldap.Conn, error) {
 	return conn, nil
 }
 
-// ListUsers returns all users from LDAP
+// ListUsers returns users from LDAP with pagination support
 func ListUsers(c *gin.Context) {
 	conn, err := getAdminConnection()
 	if err != nil {
@@ -57,6 +57,9 @@ func ListUsers(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+
+	// Parse pagination parameters
+	page, pageSize := getPaginationParams(c)
 
 	baseDN := fmt.Sprintf("ou=users,%s", apiConfig.Database[0].Base)
 	searchRequest := ldap.NewSearchRequest(
@@ -77,8 +80,14 @@ func ListUsers(c *gin.Context) {
 		return
 	}
 
-	users := make([]UserResponse, 0, len(result.Entries))
-	for _, entry := range result.Entries {
+	total := len(result.Entries)
+
+	// Apply pagination
+	start, end := calculatePagination(page, pageSize, total)
+	paginatedEntries := result.Entries[start:end]
+
+	users := make([]UserResponse, 0, len(paginatedEntries))
+	for _, entry := range paginatedEntries {
 		users = append(users, UserResponse{
 			DN:          entry.DN,
 			Username:    entry.GetAttributeValue("uid"),
@@ -90,7 +99,15 @@ func ListUsers(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"users": users, "total": len(users)})
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"pagination": gin.H{
+			"page":       page,
+			"page_size":  pageSize,
+			"total":      total,
+			"total_pages": (total + pageSize - 1) / pageSize,
+		},
+	})
 }
 
 // GetUser returns a specific user by username
@@ -351,4 +368,52 @@ func SearchUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"users": users, "total": len(users), "query": query})
+}
+
+// getPaginationParams extracts and validates pagination parameters from request
+func getPaginationParams(c *gin.Context) (page int, pageSize int) {
+	page = 1
+	pageSize = 20 // Default page size
+
+	if p := c.Query("page"); p != "" {
+		if parsed, err := fmt.Sscanf(p, "%d", &page); err == nil && parsed == 1 && page > 0 {
+			// page is valid
+		} else {
+			page = 1
+		}
+	}
+
+	if ps := c.Query("page_size"); ps != "" {
+		if parsed, err := fmt.Sscanf(ps, "%d", &pageSize); err == nil && parsed == 1 && pageSize > 0 {
+			// pageSize is valid
+			if pageSize > 100 {
+				pageSize = 100 // Max page size limit
+			}
+		} else {
+			pageSize = 20
+		}
+	}
+
+	return page, pageSize
+}
+
+// calculatePagination calculates start and end indices for pagination
+func calculatePagination(page, pageSize, total int) (start int, end int) {
+	start = (page - 1) * pageSize
+	if start < 0 {
+		start = 0
+	}
+	if start >= total {
+		start = 0
+		if total > 0 {
+			start = total
+		}
+	}
+
+	end = start + pageSize
+	if end > total {
+		end = total
+	}
+
+	return start, end
 }

@@ -25,7 +25,7 @@ type GroupResponse struct {
 	GIDNumber   string   `json:"gid_number,omitempty"`
 }
 
-// ListGroups returns all groups from LDAP
+// ListGroups returns groups from LDAP with pagination support
 func ListGroups(c *gin.Context) {
 	conn, err := getAdminConnection()
 	if err != nil {
@@ -33,6 +33,9 @@ func ListGroups(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+
+	// Parse pagination parameters
+	page, pageSize := getPaginationParams(c)
 
 	baseDN := fmt.Sprintf("ou=roles,%s", apiConfig.Database[0].Base)
 	searchRequest := ldap.NewSearchRequest(
@@ -53,8 +56,14 @@ func ListGroups(c *gin.Context) {
 		return
 	}
 
-	groups := make([]GroupResponse, 0, len(result.Entries))
-	for _, entry := range result.Entries {
+	total := len(result.Entries)
+
+	// Apply pagination
+	start, end := calculatePagination(page, pageSize, total)
+	paginatedEntries := result.Entries[start:end]
+
+	groups := make([]GroupResponse, 0, len(paginatedEntries))
+	for _, entry := range paginatedEntries {
 		groups = append(groups, GroupResponse{
 			DN:          entry.DN,
 			GroupName:   entry.GetAttributeValue("cn"),
@@ -64,7 +73,15 @@ func ListGroups(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"groups": groups, "total": len(groups)})
+	c.JSON(http.StatusOK, gin.H{
+		"groups": groups,
+		"pagination": gin.H{
+			"page":        page,
+			"page_size":   pageSize,
+			"total":       total,
+			"total_pages": (total + pageSize - 1) / pageSize,
+		},
+	})
 }
 
 // GetGroup returns a specific group by name
