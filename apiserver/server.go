@@ -26,17 +26,19 @@ func Server(apiconfig config.Config) {
 
 	go poolMonitor(apiconfig, stateError)
 
+	// Initialize OAuth2 server
+	InitOAuth2Server(apiconfig)
+
 	router := gin.Default()
+
+	// Improved CORS configuration
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"POST, OPTIONS, GET, PUT"},
-		AllowHeaders:     []string{"Access-Control-Allow-Headers, Range, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers, Origin, Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Cache-Control, X-Requested-With"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:9090", "http://127.0.0.1:3000", "http://127.0.0.1:9090"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "Range"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Range"},
 		AllowCredentials: true,
-		AllowOriginFunc: func(origin string) bool {
-			return origin == "https://github.com"
-		},
-		MaxAge: 12 * time.Hour,
+		MaxAge:           12 * time.Hour,
 	}))
 
 	fsEmbed := EmbedFolder(dashboard, "dashboard/build", true)
@@ -47,6 +49,47 @@ func Server(apiconfig config.Config) {
 		log.Fatal(err)
 	}
 
+	// OAuth2 endpoints
+	router.POST("/oauth/token", TokenHandler)
+	router.POST("/oauth/register", OAuth2Middleware(), RegisterOAuth2Client)
+
+	// Public endpoints
+	router.GET("/api/hello", hello)
+	router.GET("/api/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "healthy", "version": "0.1.3"})
+	})
+
+	// Protected API endpoints - Users
+	api := router.Group("/api")
+	api.Use(OAuth2Middleware())
+	{
+		// User management
+		api.GET("/users", ListUsers)
+		api.GET("/users/search", SearchUsers)
+		api.GET("/users/:username", GetUser)
+		api.POST("/users", CreateUser)
+		api.PUT("/users/:username", UpdateUser)
+		api.DELETE("/users/:username", DeleteUser)
+
+		// Group management
+		api.GET("/groups", ListGroups)
+		api.GET("/groups/search", SearchGroups)
+		api.GET("/groups/:groupname", GetGroup)
+		api.POST("/groups", CreateGroup)
+		api.PUT("/groups/:groupname", UpdateGroup)
+		api.DELETE("/groups/:groupname", DeleteGroup)
+
+		// Group membership
+		api.POST("/groups/:groupname/members", AddMemberToGroup)
+		api.DELETE("/groups/:groupname/members/:username", RemoveMemberFromGroup)
+
+		// Monitoring (legacy endpoint)
+		api.GET("/monitor/0", func(ctx *gin.Context) {
+			monitor(ctx, apiconfig)
+		})
+	}
+
+	// Legacy auth endpoint (deprecated, use /oauth/token instead)
 	router.POST("/auth", func(c *gin.Context) {
 		err = basicAuth(c, apiconfig)
 		if err != nil {
@@ -54,11 +97,6 @@ func Server(apiconfig config.Config) {
 		} else {
 			auth(c)
 		}
-	})
-
-	router.GET("/api/hello", hello)
-	router.GET("/api/monitor/0", AuthMiddleware(), func(ctx *gin.Context) {
-		monitor(ctx, apiconfig)
 	})
 
 	router.GET("/", func(c *gin.Context) {

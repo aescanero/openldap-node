@@ -78,3 +78,8 @@ func (enc Encode) Matches(passwordSSHAB64, rawPassPhrase []byte, debug bool) boo
 	}
 	return bytes.Equal(sum, hash[:len(hash)-4])
 }
+
+// EncodeBase64 encodes bytes to base64 string
+func EncodeBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
+}
