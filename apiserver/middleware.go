@@ -4,9 +4,22 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aescanero/openldap-node/config"
 	"github.com/gin-gonic/gin"
 	"github.com/go-oauth2/oauth2/v4"
 )
+
+// GetAuthMiddleware returns the appropriate authentication middleware based on configuration
+// If OAuth2 is enabled, it returns OAuth2Middleware; otherwise, it returns a no-op middleware
+func GetAuthMiddleware(cfg config.Config) gin.HandlerFunc {
+	if cfg.SrvConfig.OAuth2.Enabled {
+		return OAuth2Middleware()
+	}
+	// Return a no-op middleware when OAuth2 is disabled
+	return func(c *gin.Context) {
+		c.Next()
+	}
+}
 
 // OAuth2Middleware validates OAuth2 access tokens
 func OAuth2Middleware() gin.HandlerFunc {

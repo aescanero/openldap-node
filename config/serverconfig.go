@@ -18,6 +18,7 @@ type ServerConfig struct {
 	Debug               string
 	ApiTls              ApiTlsConfig
 	Redis               RedisConfig
+	OAuth2              OAuth2Config
 }
 
 // ApiTlsConfig holds TLS configuration for the API server
@@ -36,6 +37,11 @@ type RedisConfig struct {
 	Port     string `yaml:"port"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+}
+
+// OAuth2Config holds OAuth2 authentication configuration
+type OAuth2Config struct {
+	Enabled bool `yaml:"enabled"` // Enable/disable OAuth2 authentication
 }
 
 func (scIn *ServerConfig) ImportNotNull(sc *ServerConfig) {

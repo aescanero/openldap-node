@@ -47,6 +47,29 @@ cd ../..
 
 ## Configuration
 
+All configuration can be provided via YAML configuration file or environment variables. Environment variables take precedence over configuration file values.
+
+### Environment Variables
+
+- `OAUTH2_ENABLED`: Enable/disable OAuth2 authentication (`true` or `false`)
+- `REDIS_ENABLED`: Enable/disable Redis token storage (`true` or `false`)
+- `REDIS_HOST`: Redis server host
+- `REDIS_PORT`: Redis server port
+- `REDIS_PASSWORD`: Redis password
+- `REDIS_DB`: Redis database number
+- `API_TLS_ENABLED`: Enable/disable HTTPS (`true` or `false`)
+- `API_TLS_CERT_FILE`: Path to TLS certificate file
+- `API_TLS_KEY_FILE`: Path to TLS key file
+- `API_TLS_PORT`: HTTPS port (default: 9443)
+- `API_TLS_AUTO_REDIRECT`: Auto-redirect HTTP to HTTPS (`true` or `false`)
+
+Example:
+```bash
+export OAUTH2_ENABLED=false
+export API_TLS_ENABLED=true
+./openldap-node server
+```
+
 ### HTTPS/TLS
 
 Generate self-signed certificates for testing:
@@ -68,9 +91,17 @@ api_tls:
 
 ### OAuth2
 
-Configure OAuth2 clients and Redis storage in your configuration:
+The API supports two authentication modes:
+
+1. **OAuth2 Enabled** (default): API endpoints require OAuth2 Bearer token authentication
+2. **OAuth2 Disabled**: API endpoints are publicly accessible without authentication
+
+Configure OAuth2 mode and Redis storage in your configuration:
 
 ```yaml
+oauth2:
+  enabled: true  # Set to false to disable authentication
+
 redis:
   enabled: true
   host: "localhost"
@@ -78,6 +109,8 @@ redis:
   password: ""
   db: 0
 ```
+
+**Important**: When OAuth2 is disabled, all API endpoints become publicly accessible. Use this mode only in trusted networks or for development purposes.
 
 ### LDAP
 
@@ -134,7 +167,13 @@ curl "https://localhost:9443/api/users?page=1&page_size=20" \
 
 ## Authentication
 
-### Obtaining a Token
+The server supports two authentication modes:
+
+### Mode 1: OAuth2 Enabled (Default)
+
+When OAuth2 is enabled (`oauth2.enabled: true`), all API endpoints require authentication.
+
+#### Obtaining a Token
 
 ```bash
 curl -X POST https://localhost:9443/oauth/token \
@@ -155,7 +194,7 @@ Response:
 }
 ```
 
-### Using the Token
+#### Using the Token
 
 Include the token in API requests:
 
@@ -163,6 +202,30 @@ Include the token in API requests:
 curl -X GET https://localhost:9443/api/users \
   -H "Authorization: Bearer eyJhbGc..."
 ```
+
+### Mode 2: OAuth2 Disabled
+
+When OAuth2 is disabled (`oauth2.enabled: false`), all API endpoints are publicly accessible without authentication.
+
+#### Direct API Access
+
+```bash
+# No authentication required
+curl -X GET https://localhost:9443/api/users
+
+# Create a user without token
+curl -X POST https://localhost:9443/api/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "john",
+    "email": "john@example.com",
+    "givenName": "John",
+    "sn": "Doe",
+    "password": "userpass123"
+  }'
+```
+
+**Security Warning**: Only use disabled mode in trusted networks or for development. In production, always enable OAuth2 authentication.
 
 ## React Admin Dashboard
 
@@ -220,12 +283,14 @@ The server will:
 
 ## Security Notes
 
-- The self-signed certificates are for testing only
-- Use proper CA-signed certificates in production
-- Keep OAuth2 client secrets secure
-- Use environment variables for sensitive configuration
-- Enable Redis for production token storage
-- Configure LDAP admin credentials securely
+- **OAuth2 Authentication**: Always enable OAuth2 (`oauth2.enabled: true`) in production environments
+- **Disabled Mode**: Only use OAuth2 disabled mode in trusted networks or development environments
+- **TLS Certificates**: The self-signed certificates are for testing only; use proper CA-signed certificates in production
+- **Client Secrets**: Keep OAuth2 client secrets secure and never commit them to version control
+- **Environment Variables**: Use environment variables for sensitive configuration
+- **Redis**: Enable Redis for production token storage to support distributed deployments
+- **LDAP Credentials**: Configure LDAP admin credentials securely using password files or environment variables
+- **Network Security**: When OAuth2 is disabled, ensure the API is not exposed to untrusted networks
 
 ## License
 

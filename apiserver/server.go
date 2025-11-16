@@ -26,8 +26,13 @@ func Server(apiconfig config.Config) {
 
 	go poolMonitor(apiconfig, stateError)
 
-	// Initialize OAuth2 server
-	InitOAuth2Server(apiconfig)
+	// Initialize OAuth2 server only if OAuth2 is enabled
+	if apiconfig.SrvConfig.OAuth2.Enabled {
+		log.Println("OAuth2 authentication: ENABLED")
+		InitOAuth2Server(apiconfig)
+	} else {
+		log.Println("OAuth2 authentication: DISABLED - API endpoints will be accessible without authentication")
+	}
 
 	router := gin.Default()
 
@@ -58,9 +63,9 @@ func Server(apiconfig config.Config) {
 		log.Fatal(err)
 	}
 
-	// OAuth2 endpoints
+	// OAuth2 endpoints (only functional when OAuth2 is enabled)
 	router.POST("/oauth/token", TokenHandler)
-	router.POST("/oauth/register", OAuth2Middleware(), RegisterOAuth2Client)
+	router.POST("/oauth/register", GetAuthMiddleware(apiconfig), RegisterOAuth2Client)
 
 	// Public endpoints
 	router.GET("/api/hello", hello)
@@ -68,9 +73,9 @@ func Server(apiconfig config.Config) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "version": "0.1.3"})
 	})
 
-	// Protected API endpoints - Users
+	// API endpoints - Protected when OAuth2 is enabled, public when disabled
 	api := router.Group("/api")
-	api.Use(OAuth2Middleware())
+	api.Use(GetAuthMiddleware(apiconfig))
 	{
 		// User management
 		api.GET("/users", ListUsers)
